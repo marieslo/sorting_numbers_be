@@ -13,10 +13,6 @@ This is a simple Express.js server that provides an API for serving a large list
 
 ---
 
-## API Endpoints
-
-### GET /items
-
 Fetches a paginated list of items with optional filtering and sorting.
 
 **Query parameters:**
