@@ -4,7 +4,14 @@ const app = express();
 
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+const corsOptions = {
+  origin: 'https://sorting-numbers-fe.netlify.app',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+};
+
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Генерация массива от 1 до 1 000 000
