@@ -4,8 +4,19 @@ const app = express();
 
 const port = process.env.PORT || 4000;
 
+const allowedOrigins = [
+  'https://sorting-numbers-fe.netlify.app',
+  'http://localhost:5173',
+];
+
 const corsOptions = {
-  origin: 'https://sorting-numbers-fe.netlify.app',
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type'],
 };
