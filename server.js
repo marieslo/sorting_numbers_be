@@ -1,13 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const port = 4000;
-
 const allowedOrigins = [
   'https://sorting-numbers-fe.netlify.app',
   'http://localhost:5173',
 ];
-
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -21,100 +18,77 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
 app.use(express.json());
 
-const ITEMS_COUNT = 1_000_000;
-const items = Array.from({ length: ITEMS_COUNT }, (_, i) => ({
+const PORT = 4000;
+
+// Эмуляция БД: 1_000_000 элементов
+const items = Array.from({ length: 1_000_000 }, (_, i) => ({
   id: i + 1,
-  value: `${i + 1}`,
+  value: `${i + 1}`
 }));
 
-// Пользовательское состояние (для одного пользователя)
+// Временное хранилище состояния пользователя
 let userState = {
   selectedIds: [],
   sortedIds: [],
   offset: 0,
+  scrollTop: 0
 };
 
-// Чтобы ускорить поиск, создадим Map из id -> item (готовится один раз)
-const itemsMap = new Map(items.map(item => [item.id, item]));
-
-// GET /items — с фильтрацией, сортировкой, пагинацией
-app.get('/items', (req, res) => {
-  let { search = '', offset = 0, limit = 20, useSorted = 'false' } = req.query;
-
-  offset = Number(offset);
-  limit = Number(limit);
-
-  let filteredIds;
-
-  if (search) {
-    // Если есть поиск, нужно фильтровать по значению
-    const searchLower = search.toLowerCase();
-
-    // Эффективно фильтруем: идем по массиву и собираем id элементов, которые подходят
-    filteredIds = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].value.includes(searchLower)) {
-        filteredIds.push(items[i].id);
-      }
-    }
-  } else {
-    // Если поиска нет, то берем все id
-    filteredIds = items.map(item => item.id);
-  }
-
-  // Если нужно сортировать по пользовательскому порядку
-  if (useSorted === 'true' && userState.sortedIds.length > 0) {
-    // Создаем Set из filteredIds для быстрого поиска
-    const filteredSet = new Set(filteredIds);
-
-    // Сначала добавим id из userState.sortedIds, которые есть в filteredIds
-    const sortedFilteredIds = [];
-    for (const id of userState.sortedIds) {
-      if (filteredSet.has(id)) {
-        sortedFilteredIds.push(id);
-        filteredSet.delete(id);
-      }
-    }
-
-    // Затем добавим id, которые есть в filteredIds, но отсутствуют в sortedIds
-    for (const id of filteredSet) {
-      sortedFilteredIds.push(id);
-    }
-
-    filteredIds = sortedFilteredIds;
-  }
-
-  // Пагинация - отрезаем кусок id
-  const pagedIds = filteredIds.slice(offset, offset + limit);
-
-  // Получаем объекты по id из Map
-  const pagedItems = pagedIds.map(id => itemsMap.get(id));
-
-  res.json({
-    items: pagedItems,
-    total: filteredIds.length,
-  });
-});
-
-// POST /save-state — сохраняем пользовательское состояние
-app.post('/save-state', (req, res) => {
-  const { selectedIds = [], sortedIds = [], offset = 0 } = req.body;
-
-  userState.selectedIds = selectedIds;
-  userState.sortedIds = sortedIds;
-  userState.offset = offset;
-
-  res.sendStatus(200);
-});
-
-// GET /get-state — возвращаем текущее состояние пользователя
+// GET: получить состояние пользователя
 app.get('/get-state', (req, res) => {
   res.json(userState);
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${port}`);
+// POST: сохранить состояние пользователя
+app.post('/save-state', (req, res) => {
+  const { selectedIds, sortedIds, offset, scrollTop } = req.body;
+  if (selectedIds) userState.selectedIds = selectedIds;
+  if (sortedIds) userState.sortedIds = sortedIds;
+  if (typeof offset === 'number') userState.offset = offset;
+  if (typeof scrollTop === 'number') userState.scrollTop = scrollTop;
+  res.json({ status: 'ok' });
+});
+
+function getFilteredIds(search = '', useSorted = false) {
+  let filtered = search
+    ? items.filter(item => item.value.toLowerCase().includes(search.toLowerCase())).map(i => i.id)
+    : items.map(i => i.id);
+
+  if (useSorted && userState.sortedIds.length > 0) {
+    const filteredSet = new Set(filtered);
+    const sortedFiltered = userState.sortedIds.filter(id => filteredSet.has(id));
+    const remaining = filtered.filter(id => !userState.sortedIds.includes(id));
+    return [...sortedFiltered, ...remaining];
+  }
+  return filtered;
+}
+
+// GET /items - с пагинацией и поиском
+app.get('/items', (req, res) => {
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 20;
+  const search = req.query.search || '';
+  const useSorted = req.query.useSorted === 'true';
+
+  const filteredIds = getFilteredIds(search, useSorted);
+  const total = filteredIds.length;
+
+  const pageIds = filteredIds.slice(offset, offset + limit);
+  const pageItems = pageIds.map(id => ({ id, value: id.toString() }));
+
+  res.json({ items: pageItems, total });
+});
+
+// POST /items/bulk - получить элементы по массиву ID
+app.post('/items/bulk', (req, res) => {
+  const ids = req.body.ids || [];
+  const filtered = ids.filter(id => id >= 1 && id <= items.length);
+  const bulkItems = filtered.map(id => ({ id, value: id.toString() }));
+  res.json({ items: bulkItems });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
