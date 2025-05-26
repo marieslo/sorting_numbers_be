@@ -75,9 +75,9 @@ app.post('/save-state', (req, res) => {
     lastSearch,
   } = req.body;
 
-  if (selectedIds) userState.selectedIds = selectedIds;
-  if (sortedIds) userState.sortedIds = sortedIds;
-  if (filteredSortedIds) userState.filteredSortedIds = filteredSortedIds;
+  if (selectedIds) userState.selectedIds = Array.from(new Set(selectedIds));
+  if (sortedIds) userState.sortedIds = Array.from(new Set(sortedIds));
+  if (filteredSortedIds) userState.filteredSortedIds = Array.from(new Set(filteredSortedIds));
   if (typeof offset === 'number') userState.offset = offset;
   if (typeof filteredOffset === 'number') userState.filteredOffset = filteredOffset;
   if (typeof scrollTop === 'number') userState.scrollTop = scrollTop;
@@ -86,6 +86,7 @@ app.post('/save-state', (req, res) => {
 
   res.json({ status: 'ok' });
 });
+
 
 // API: получить элементы с пагинацией, поиском и сортировкой
 app.get('/items', (req, res) => {
